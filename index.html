@@ -54,6 +54,9 @@ button{cursor:pointer;}
 .banner.warn{background:#C1613F1A;color:var(--accent);}
 .banner.ok{background:#1F6F6B1A;color:var(--primary-dark);}
 .tableWrap{overflow-x:auto;}
+.qr-container{text-align:center; padding: 15px; background: #fff; border: 1px dashed var(--border); border-radius: 8px; margin-top: 10px;}
+.qr-container img{max-width: 150px; height: auto;}
+.qr-container p{font-size: 11.5px; color: var(--muted); margin: 0 0 10px;}
 </style>
 </head>
 <body>
@@ -84,8 +87,9 @@ button{cursor:pointer;}
       <input type="number" id="op-minutos" min="0" value="15">
       <label>Notas</label>
       <textarea id="op-notas" placeholder="Observaciones clínicas u operativas…"></textarea>
+      <!-- Corrección: Se eliminó capture="environment" -->
       <label>Foto (opcional)</label>
-      <input type="file" id="op-foto" accept="image/*" capture="environment">
+      <input type="file" id="op-foto" accept="image/*">
       <img id="op-preview" class="thumb" style="display:none">
       <button class="btn-primary" onclick="guardar('operativo')">Guardar actividad</button>
     </div>
@@ -99,12 +103,20 @@ button{cursor:pointer;}
   <section id="view-admin" class="view">
     <div class="card">
       <h2>Registrar actividad administrativa / educativa</h2>
+      
+      <!-- NUEVO: Sección de Código QR para Asistencia -->
+      <div class="qr-container" id="qr-section">
+        <p><b>Listado de Asistencia Digital</b><br>Pide a los asistentes escanear este QR para registrar: Nombre, Cargo, Área y Contacto.</p>
+        <!-- La imagen del QR se inyecta por JS al final del script -->
+        <img id="qr-img" src="" alt="Código QR de Asistencia">
+      </div>
+
       <label>Fecha</label>
       <input type="date" id="ad-fecha">
       <label>Responsable / facilitador</label>
       <input type="text" id="ad-responsable" placeholder="Nombre completo">
       <label>Tipo de actividad</label>
-      <select id="ad-tipo">
+      <select id="ad-tipo" onchange="toggleQR(this.value)">
         <option value="Educación">Educación (sesión)</option>
         <option value="Administrativo">Administrativo</option>
       </select>
@@ -114,10 +126,11 @@ button{cursor:pointer;}
       <input type="number" id="ad-minutos" min="0" value="60">
       <label>Tema / notas</label>
       <textarea id="ad-notas" placeholder="Tema de la sesión u observación…"></textarea>
-      <label>Asistentes (uno por línea, opcional — para listado de asistencia)</label>
-      <textarea id="ad-asistentes" placeholder="Nombre 1&#10;Nombre 2&#10;Nombre 3"></textarea>
-      <label>Foto (listado firmado / evidencia)</label>
-      <input type="file" id="ad-foto" accept="image/*" capture="environment">
+      <label>Asistentes (Solo si no usaste el QR)</label>
+      <textarea id="ad-asistentes" placeholder="Nombre 1&#10;Nombre 2"></textarea>
+      <!-- Corrección: Se eliminó capture="environment" -->
+      <label>Foto (evidencia de la sesión)</label>
+      <input type="file" id="ad-foto" accept="image/*">
       <img id="ad-preview" class="thumb" style="display:none">
       <button class="btn-primary" onclick="guardar('administrativo')">Guardar actividad</button>
     </div>
@@ -161,10 +174,16 @@ button{cursor:pointer;}
 
 <script>
 /* ============ CONFIGURACIÓN ============ */
-/* Reemplaza esta URL por la de tu Web App de Google Apps Script (ver instrucciones) */
 const CONFIG = {
-  APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbxRoS-Q85BfdjAcgiUzLdFWvCKYSv20T_EsuRYTtRRFMtHXDzumP-K_Zkp6-tHc4c6u/exec"
+  // Reemplaza por tu URL terminada en /exec
+  APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbxRoS-Q85BfdjAcgiUzLdFWvCKYSv20T_EsuRYTtRRFMtHXDzumP-K_Zkp6-tHc4c6u/exec",
+  
+  // Reemplaza por el enlace de tu Google Forms de Asistencia
+  URL_FORMULARIO_ASISTENCIA: "https://forms.gle/mcuYavg59bDkrWoZ9" 
 };
+
+// Generar el QR inyectando el enlace a la API
+document.getElementById('qr-img').src = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + encodeURIComponent(CONFIG.URL_FORMULARIO_ASISTENCIA);
 
 const TIPO_COLOR = {
   "Catéter aplicado": "#1F6F6B", "Mantenimiento": "#3E8F86", "Consulta": "#6FAAA3",
@@ -188,6 +207,16 @@ function switchTab(tab){
   document.getElementById("view-"+tab).classList.add("active");
   document.querySelector(`.tabbtn[data-tab="${tab}"]`).classList.add("active");
   if(tab==="informes") cargarInformes();
+}
+
+function toggleQR(tipo){
+  const qrSection = document.getElementById("qr-section");
+  // Ocultar QR si no es educación
+  if(tipo === "Administrativo") {
+    qrSection.style.display = "none";
+  } else {
+    qrSection.style.display = "block";
+  }
 }
 
 ["op-foto","ad-foto"].forEach(id=>{
@@ -222,6 +251,24 @@ function comprimirImagen(file, maxWidth=800, quality=0.55){
   });
 }
 
+// Bloque Try-Catch añadido para evitar congelamiento si el navegador bloquea LocalStorage
+function obtenerCacheLocal(clave){
+  try {
+    return JSON.parse(localStorage.getItem(clave) || "[]");
+  } catch (e) {
+    console.warn("LocalStorage bloqueado por el navegador.");
+    return [];
+  }
+}
+
+function guardarCacheLocal(clave, data){
+  try {
+    localStorage.setItem(clave, JSON.stringify(data));
+  } catch (e) {
+    console.warn("No se pudo guardar en LocalStorage.");
+  }
+}
+
 async function guardar(modulo){
   const p = modulo === "operativo" ? "op" : "ad";
   const responsable = document.getElementById(p+"-responsable").value.trim();
@@ -238,7 +285,11 @@ async function guardar(modulo){
     foto: document.getElementById(p+"-preview").dataset.value || ""
   };
   await enviarRegistro(record);
-  guardarLocal(record);
+  
+  const cache = obtenerCacheLocal("picc_local_cache");
+  cache.unshift(record);
+  guardarCacheLocal("picc_local_cache", cache.slice(0,200));
+  
   renderLista(modulo);
   limpiarFormulario(p, modulo);
 }
@@ -270,14 +321,14 @@ async function enviarRegistro(record){
 }
 
 function encolarPendiente(record){
-  const cola = JSON.parse(localStorage.getItem("picc_queue")||"[]");
+  const cola = obtenerCacheLocal("picc_queue");
   cola.push(record);
-  localStorage.setItem("picc_queue", JSON.stringify(cola));
+  guardarCacheLocal("picc_queue", cola);
   actualizarBannerPendientes();
 }
 
 async function reintentarPendientes(){
-  let cola = JSON.parse(localStorage.getItem("picc_queue")||"[]");
+  let cola = obtenerCacheLocal("picc_queue");
   if(cola.length===0) return;
   const restantes = [];
   for(const r of cola){
@@ -289,13 +340,13 @@ async function reintentarPendientes(){
       if(!data.ok) restantes.push(r);
     }catch(e){ restantes.push(r); }
   }
-  localStorage.setItem("picc_queue", JSON.stringify(restantes));
+  guardarCacheLocal("picc_queue", restantes);
   actualizarBannerPendientes();
 }
 window.addEventListener("online", reintentarPendientes);
 
 function actualizarBannerPendientes(){
-  const cola = JSON.parse(localStorage.getItem("picc_queue")||"[]");
+  const cola = obtenerCacheLocal("picc_queue");
   const el = document.getElementById("pending-banner");
   if(cola.length>0){
     el.innerHTML = `<div class="banner warn">${cola.length} registro(s) pendiente(s) por enviar.
@@ -311,14 +362,8 @@ function mostrarBanner(tipo, texto){
   setTimeout(actualizarBannerPendientes, 3500);
 }
 
-function guardarLocal(record){
-  const cache = JSON.parse(localStorage.getItem("picc_local_cache")||"[]");
-  cache.unshift(record);
-  localStorage.setItem("picc_local_cache", JSON.stringify(cache.slice(0,200)));
-}
-
 function renderLista(modulo){
-  const cache = JSON.parse(localStorage.getItem("picc_local_cache")||"[]").filter(r=>r.modulo===modulo);
+  const cache = obtenerCacheLocal("picc_local_cache").filter(r=>r.modulo===modulo);
   const target = document.getElementById(modulo==="operativo"?"op-lista":"ad-lista");
   if(cache.length===0){ target.innerHTML = '<div class="empty">Sin registros aún.</div>'; return; }
   target.innerHTML = cache.slice(0,8).map(r=>`
@@ -330,7 +375,13 @@ function renderLista(modulo){
       <span class="badge" style="background:${TIPO_COLOR[r.tipo]}1A;color:${TIPO_COLOR[r.tipo]}">${r.tipo}</span>
     </div>`).join("");
 }
-renderLista("operativo"); renderLista("administrativo"); actualizarBannerPendientes();
+
+// Inicialización segura
+try {
+  renderLista("operativo"); 
+  renderLista("administrativo"); 
+  actualizarBannerPendientes();
+} catch (e) {}
 
 function setMetric(m){
   metric = m;
@@ -345,7 +396,7 @@ async function cargarInformes(){
     const res = await fetch(CONFIG.APPS_SCRIPT_URL, { method:"GET" });
     allRows = await res.json();
   }catch(e){
-    allRows = JSON.parse(localStorage.getItem("picc_local_cache")||"[]").map(r=>({
+    allRows = obtenerCacheLocal("picc_local_cache").map(r=>({
       "Fecha actividad": r.fecha, "Responsable": r.responsable, "Tipo": r.tipo,
       "Cantidad": r.cantidad, "Minutos": r.minutos, "Modulo": r.modulo
     }));
@@ -358,8 +409,10 @@ let chartRef = null;
 function pintarInformes(){
   const desde = document.getElementById("inf-desde").value;
   const hasta = document.getElementById("inf-hasta").value;
+  
   const filtered = allRows.filter(r => {
-    const f = r["Fecha actividad"] || r.fecha;
+    // CORRECCIÓN: Se corta el timestamp para que solo compare YYYY-MM-DD
+    const f = String(r["Fecha actividad"] || r.fecha).slice(0, 10);
     return f >= desde && f <= hasta;
   });
 
