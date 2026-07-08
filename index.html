@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>PICC · Control</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#F4F7F6; --surface:#FFFFFF; --ink:#12302E; --primary:#1F6F6B;
+  --primary-dark:#14504D; --accent:#C1613F; --muted:#6E7C7A; --border:#DCE6E4;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 18px 12px;position:sticky;top:0;z-index:5;}
+header h1{margin:0;font-size:18px;font-weight:700;}
+header p{margin:2px 0 0;font-size:12px;color:var(--muted);}
+main{padding:16px;padding-bottom:90px;max-width:640px;margin:0 auto;}
+.view{display:none;}
+.view.active{display:block;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px;}
+.card h2{font-size:15px;margin:0 0 12px;font-weight:700;}
+label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:4px;margin-top:10px;}
+input,select,textarea{width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:15px;background:#FBFDFC;color:var(--ink);}
+textarea{resize:vertical;min-height:60px;}
+button{cursor:pointer;}
+.btn-primary{width:100%;margin-top:14px;padding:12px;background:var(--primary);color:#fff;border:none;border-radius:9px;font-size:15px;font-weight:600;}
+.btn-primary:active{background:var(--primary-dark);}
+.btn-secondary{padding:9px 14px;background:transparent;border:1px solid var(--border);border-radius:9px;font-size:13px;color:var(--primary-dark);font-weight:600;}
+.thumb{width:70px;height:70px;object-fit:cover;border-radius:8px;border:1px solid var(--border);margin-top:8px;}
+.badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;}
+.row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);gap:8px;}
+.row:last-child{border-bottom:none;}
+.rowmain{font-size:13.5px;font-weight:600;}
+.rowsub{font-size:11.5px;color:var(--muted);}
+.empty{font-size:13px;color:var(--muted);text-align:center;padding:16px 0;}
+.tabbar{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);display:flex;z-index:10;}
+.tabbtn{flex:1;padding:10px 0 8px;background:none;border:none;font-size:11px;color:var(--muted);font-weight:600;text-align:center;}
+.tabbtn.active{color:var(--primary);}
+.tabbtn .ic{font-size:18px;display:block;margin-bottom:2px;}
+.statgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;}
+.stat .l{font-size:11px;color:var(--muted);}
+.stat .v{font-size:20px;font-weight:700;color:var(--primary-dark);font-family:monospace;}
+.tbl{width:100%;border-collapse:collapse;font-size:12px;}
+.tbl th,.tbl td{padding:7px 6px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;}
+.tbl th{color:var(--muted);font-weight:600;}
+.filters{display:flex;gap:8px;}
+.filters label{flex:1;}
+.toggle{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:10px;}
+.toggle button{flex:1;padding:8px;background:transparent;border:none;font-size:12.5px;color:var(--muted);font-weight:600;}
+.toggle button.active{background:var(--primary);color:#fff;}
+.banner{font-size:12px;padding:10px 12px;border-radius:9px;margin-bottom:14px;}
+.banner.warn{background:#C1613F1A;color:var(--accent);}
+.banner.ok{background:#1F6F6B1A;color:var(--primary-dark);}
+.tableWrap{overflow-x:auto;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>PICC · Control</h1>
+  <p>Programa de accesos vasculares · uso compartido del equipo</p>
+</header>
+
+<main>
+  <!-- OPERATIVO -->
+  <section id="view-operativo" class="view active">
+    <div class="card">
+      <h2>Registrar actividad operativa</h2>
+      <label>Fecha</label>
+      <input type="date" id="op-fecha">
+      <label>Responsable</label>
+      <input type="text" id="op-responsable" placeholder="Nombre completo">
+      <label>Tipo de actividad</label>
+      <select id="op-tipo">
+        <option value="Catéter aplicado">Catéter aplicado</option>
+        <option value="Mantenimiento">Mantenimiento</option>
+        <option value="Consulta">Consulta</option>
+      </select>
+      <label id="op-cant-label">Cantidad</label>
+      <input type="number" id="op-cantidad" min="0" value="1">
+      <label>Minutos dedicados</label>
+      <input type="number" id="op-minutos" min="0" value="15">
+      <label>Notas</label>
+      <textarea id="op-notas" placeholder="Observaciones clínicas u operativas…"></textarea>
+      <label>Foto (opcional)</label>
+      <input type="file" id="op-foto" accept="image/*" capture="environment">
+      <img id="op-preview" class="thumb" style="display:none">
+      <button class="btn-primary" onclick="guardar('operativo')">Guardar actividad</button>
+    </div>
+    <div class="card">
+      <h2>Últimos registros operativos</h2>
+      <div id="op-lista"><div class="empty">Sin registros aún.</div></div>
+    </div>
+  </section>
+
+  <!-- ADMINISTRATIVO / EDUCACION -->
+  <section id="view-admin" class="view">
+    <div class="card">
+      <h2>Registrar actividad administrativa / educativa</h2>
+      <label>Fecha</label>
+      <input type="date" id="ad-fecha">
+      <label>Responsable / facilitador</label>
+      <input type="text" id="ad-responsable" placeholder="Nombre completo">
+      <label>Tipo de actividad</label>
+      <select id="ad-tipo">
+        <option value="Educación">Educación (sesión)</option>
+        <option value="Administrativo">Administrativo</option>
+      </select>
+      <label id="ad-cant-label">Cantidad de sesiones/actividades</label>
+      <input type="number" id="ad-cantidad" min="0" value="1">
+      <label>Minutos dedicados</label>
+      <input type="number" id="ad-minutos" min="0" value="60">
+      <label>Tema / notas</label>
+      <textarea id="ad-notas" placeholder="Tema de la sesión u observación…"></textarea>
+      <label>Asistentes (uno por línea, opcional — para listado de asistencia)</label>
+      <textarea id="ad-asistentes" placeholder="Nombre 1&#10;Nombre 2&#10;Nombre 3"></textarea>
+      <label>Foto (listado firmado / evidencia)</label>
+      <input type="file" id="ad-foto" accept="image/*" capture="environment">
+      <img id="ad-preview" class="thumb" style="display:none">
+      <button class="btn-primary" onclick="guardar('administrativo')">Guardar actividad</button>
+    </div>
+    <div class="card">
+      <h2>Últimos registros administrativos / educativos</h2>
+      <div id="ad-lista"><div class="empty">Sin registros aún.</div></div>
+    </div>
+  </section>
+
+  <!-- INFORMES -->
+  <section id="view-informes" class="view">
+    <div id="pending-banner"></div>
+    <div class="card">
+      <div class="filters">
+        <label>Desde<input type="date" id="inf-desde"></label>
+        <label>Hasta<input type="date" id="inf-hasta"></label>
+      </div>
+      <div class="toggle">
+        <button id="metric-horas" class="active" onclick="setMetric('horas')">Horas</button>
+        <button id="metric-cantidad" onclick="setMetric('cantidad')">Cantidad</button>
+      </div>
+      <button class="btn-secondary" style="margin-top:12px;width:100%" onclick="cargarInformes()">Actualizar datos</button>
+    </div>
+    <div class="statgrid" id="inf-stats"></div>
+    <div class="card">
+      <h2>Cruce por persona y tipo</h2>
+      <div class="tableWrap"><table class="tbl" id="inf-table"></table></div>
+    </div>
+    <div class="card">
+      <h2>Horas por persona y tipo</h2>
+      <canvas id="inf-chart" height="220"></canvas>
+    </div>
+  </section>
+</main>
+
+<nav class="tabbar">
+  <button class="tabbtn active" data-tab="operativo" onclick="switchTab('operativo')"><span class="ic">⚕</span>Operativo</button>
+  <button class="tabbtn" data-tab="admin" onclick="switchTab('admin')"><span class="ic">🎓</span>Admin/Educación</button>
+  <button class="tabbtn" data-tab="informes" onclick="switchTab('informes')"><span class="ic">📊</span>Informes</button>
+</nav>
+
+<script>
+/* ============ CONFIGURACIÓN ============ */
+/* Reemplaza esta URL por la de tu Web App de Google Apps Script (ver instrucciones) */
+const CONFIG = {
+  APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbxRoS-Q85BfdjAcgiUzLdFWvCKYSv20T_EsuRYTtRRFMtHXDzumP-K_Zkp6-tHc4c6u/exec"
+};
+
+const TIPO_COLOR = {
+  "Catéter aplicado": "#1F6F6B", "Mantenimiento": "#3E8F86", "Consulta": "#6FAAA3",
+  "Educación": "#C1613F", "Administrativo": "#93917B"
+};
+
+let metric = "horas";
+let allRows = [];
+
+document.getElementById("op-fecha").value = hoy();
+document.getElementById("ad-fecha").value = hoy();
+const d1 = new Date(); d1.setDate(1);
+document.getElementById("inf-desde").value = d1.toISOString().slice(0,10);
+document.getElementById("inf-hasta").value = hoy();
+
+function hoy(){ return new Date().toISOString().slice(0,10); }
+
+function switchTab(tab){
+  document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
+  document.querySelectorAll(".tabbtn").forEach(b=>b.classList.remove("active"));
+  document.getElementById("view-"+tab).classList.add("active");
+  document.querySelector(`.tabbtn[data-tab="${tab}"]`).classList.add("active");
+  if(tab==="informes") cargarInformes();
+}
+
+["op-foto","ad-foto"].forEach(id=>{
+  document.getElementById(id).addEventListener("change", async (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const dataUrl = await comprimirImagen(file);
+    const prefix = id.split("-")[0];
+    const prev = document.getElementById(prefix+"-preview");
+    prev.src = dataUrl; prev.style.display = "block";
+    prev.dataset.value = dataUrl;
+  });
+});
+
+function comprimirImagen(file, maxWidth=800, quality=0.55){
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onload = e=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const scale = Math.min(1, maxWidth/img.width);
+        const c = document.createElement("canvas");
+        c.width = img.width*scale; c.height = img.height*scale;
+        c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+        resolve(c.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function guardar(modulo){
+  const p = modulo === "operativo" ? "op" : "ad";
+  const responsable = document.getElementById(p+"-responsable").value.trim();
+  if(!responsable){ alert("Escribe el nombre del responsable."); return; }
+  const record = {
+    modulo,
+    fecha: document.getElementById(p+"-fecha").value,
+    responsable,
+    tipo: document.getElementById(p+"-tipo").value,
+    cantidad: Number(document.getElementById(p+"-cantidad").value)||0,
+    minutos: Number(document.getElementById(p+"-minutos").value)||0,
+    notas: document.getElementById(p+"-notas").value,
+    asistentes: modulo==="administrativo" ? document.getElementById("ad-asistentes").value : "",
+    foto: document.getElementById(p+"-preview").dataset.value || ""
+  };
+  await enviarRegistro(record);
+  guardarLocal(record);
+  renderLista(modulo);
+  limpiarFormulario(p, modulo);
+}
+
+function limpiarFormulario(p, modulo){
+  document.getElementById(p+"-responsable").value = "";
+  document.getElementById(p+"-cantidad").value = 1;
+  document.getElementById(p+"-notas").value = "";
+  document.getElementById(p+"-foto").value = "";
+  document.getElementById(p+"-preview").style.display = "none";
+  document.getElementById(p+"-preview").dataset.value = "";
+  if(modulo==="administrativo") document.getElementById("ad-asistentes").value = "";
+}
+
+async function enviarRegistro(record){
+  try{
+    const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(record)
+    });
+    const data = await res.json();
+    if(!data.ok) throw new Error("respuesta no ok");
+    mostrarBanner("ok", "Registro enviado y guardado en el repositorio.");
+  }catch(err){
+    encolarPendiente(record);
+    mostrarBanner("warn", "Sin conexión: el registro quedó pendiente y se enviará automáticamente.");
+  }
+}
+
+function encolarPendiente(record){
+  const cola = JSON.parse(localStorage.getItem("picc_queue")||"[]");
+  cola.push(record);
+  localStorage.setItem("picc_queue", JSON.stringify(cola));
+  actualizarBannerPendientes();
+}
+
+async function reintentarPendientes(){
+  let cola = JSON.parse(localStorage.getItem("picc_queue")||"[]");
+  if(cola.length===0) return;
+  const restantes = [];
+  for(const r of cola){
+    try{
+      const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+        method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body: JSON.stringify(r)
+      });
+      const data = await res.json();
+      if(!data.ok) restantes.push(r);
+    }catch(e){ restantes.push(r); }
+  }
+  localStorage.setItem("picc_queue", JSON.stringify(restantes));
+  actualizarBannerPendientes();
+}
+window.addEventListener("online", reintentarPendientes);
+
+function actualizarBannerPendientes(){
+  const cola = JSON.parse(localStorage.getItem("picc_queue")||"[]");
+  const el = document.getElementById("pending-banner");
+  if(cola.length>0){
+    el.innerHTML = `<div class="banner warn">${cola.length} registro(s) pendiente(s) por enviar.
+      <button class="btn-secondary" style="margin-top:8px" onclick="reintentarPendientes()">Reintentar ahora</button></div>`;
+  } else {
+    el.innerHTML = "";
+  }
+}
+
+function mostrarBanner(tipo, texto){
+  const el = document.getElementById("pending-banner");
+  el.innerHTML = `<div class="banner ${tipo}">${texto}</div>`;
+  setTimeout(actualizarBannerPendientes, 3500);
+}
+
+function guardarLocal(record){
+  const cache = JSON.parse(localStorage.getItem("picc_local_cache")||"[]");
+  cache.unshift(record);
+  localStorage.setItem("picc_local_cache", JSON.stringify(cache.slice(0,200)));
+}
+
+function renderLista(modulo){
+  const cache = JSON.parse(localStorage.getItem("picc_local_cache")||"[]").filter(r=>r.modulo===modulo);
+  const target = document.getElementById(modulo==="operativo"?"op-lista":"ad-lista");
+  if(cache.length===0){ target.innerHTML = '<div class="empty">Sin registros aún.</div>'; return; }
+  target.innerHTML = cache.slice(0,8).map(r=>`
+    <div class="row">
+      <div>
+        <div class="rowmain">${r.responsable}</div>
+        <div class="rowsub">${r.fecha} · ${r.cantidad} · ${r.minutos} min</div>
+      </div>
+      <span class="badge" style="background:${TIPO_COLOR[r.tipo]}1A;color:${TIPO_COLOR[r.tipo]}">${r.tipo}</span>
+    </div>`).join("");
+}
+renderLista("operativo"); renderLista("administrativo"); actualizarBannerPendientes();
+
+function setMetric(m){
+  metric = m;
+  document.getElementById("metric-horas").classList.toggle("active", m==="horas");
+  document.getElementById("metric-cantidad").classList.toggle("active", m==="cantidad");
+  pintarInformes();
+}
+
+async function cargarInformes(){
+  document.getElementById("inf-table").innerHTML = "<tr><td>Cargando…</td></tr>";
+  try{
+    const res = await fetch(CONFIG.APPS_SCRIPT_URL, { method:"GET" });
+    allRows = await res.json();
+  }catch(e){
+    allRows = JSON.parse(localStorage.getItem("picc_local_cache")||"[]").map(r=>({
+      "Fecha actividad": r.fecha, "Responsable": r.responsable, "Tipo": r.tipo,
+      "Cantidad": r.cantidad, "Minutos": r.minutos, "Modulo": r.modulo
+    }));
+    mostrarBanner("warn", "No se pudo conectar al repositorio; mostrando datos locales de este dispositivo.");
+  }
+  pintarInformes();
+}
+
+let chartRef = null;
+function pintarInformes(){
+  const desde = document.getElementById("inf-desde").value;
+  const hasta = document.getElementById("inf-hasta").value;
+  const filtered = allRows.filter(r => {
+    const f = r["Fecha actividad"] || r.fecha;
+    return f >= desde && f <= hasta;
+  });
+
+  const tipos = Object.keys(TIPO_COLOR);
+  const personas = [...new Set(filtered.map(r=>r["Responsable"]||r.responsable))].sort();
+  const matrix = {};
+  personas.forEach(p=>{ matrix[p]={}; tipos.forEach(t=>matrix[p][t]={cantidad:0,minutos:0}); });
+  filtered.forEach(r=>{
+    const p = r["Responsable"]||r.responsable, t = r["Tipo"]||r.tipo;
+    if(!matrix[p] || !matrix[p][t]) return;
+    matrix[p][t].cantidad += Number(r["Cantidad"]||r.cantidad)||0;
+    matrix[p][t].minutos += Number(r["Minutos"]||r.minutos)||0;
+  });
+
+  const val = (p,t)=> metric==="horas" ? +(matrix[p][t].minutos/60).toFixed(1) : matrix[p][t].cantidad;
+  const rowTotal = p => tipos.reduce((s,t)=>s+val(p,t),0);
+  const colTotal = t => personas.reduce((s,p)=>s+val(p,t),0);
+  const grand = personas.reduce((s,p)=>s+rowTotal(p),0);
+
+  const totalHoras = filtered.reduce((s,r)=>s+(Number(r["Minutos"]||r.minutos)||0),0)/60;
+  const totalProced = filtered.filter(r=>["Catéter aplicado","Mantenimiento","Consulta"].includes(r["Tipo"]||r.tipo))
+    .reduce((s,r)=>s+(Number(r["Cantidad"]||r.cantidad)||0),0);
+  const totalEducacion = filtered.filter(r=>(r["Tipo"]||r.tipo)==="Educación").length;
+
+  document.getElementById("inf-stats").innerHTML = `
+    <div class="stat"><div class="l">Horas totales</div><div class="v">${totalHoras.toFixed(1)}</div></div>
+    <div class="stat"><div class="l">Procedimientos</div><div class="v">${totalProced}</div></div>
+    <div class="stat"><div class="l">Sesiones educativas</div><div class="v">${totalEducacion}</div></div>
+    <div class="stat"><div class="l">Personas activas</div><div class="v">${personas.length}</div></div>`;
+
+  let tbl = "<tr><th>Responsable</th>"+tipos.map(t=>`<th>${t}</th>`).join("")+"<th>Total</th></tr>";
+  if(personas.length===0){
+    tbl += `<tr><td colspan="${tipos.length+2}" style="text-align:center;color:var(--muted)">Sin registros en el rango.</td></tr>`;
+  } else {
+    personas.forEach(p=>{
+      tbl += `<tr><td>${p}</td>`+tipos.map(t=>`<td>${val(p,t)}</td>`).join("")+`<td><b>${rowTotal(p).toFixed(1)}</b></td></tr>`;
+    });
+    tbl += "<tr><td><b>Total</b></td>"+tipos.map(t=>`<td><b>${colTotal(t).toFixed(1)}</b></td>`).join("")+`<td><b>${grand.toFixed(1)}</b></td></tr>`;
+  }
+  document.getElementById("inf-table").innerHTML = tbl;
+
+  const ctx = document.getElementById("inf-chart");
+  if(chartRef) chartRef.destroy();
+  chartRef = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: personas,
+      datasets: tipos.map(t=>({
+        label: t, data: personas.map(p=>+(matrix[p][t].minutos/60).toFixed(2)),
+        backgroundColor: TIPO_COLOR[t]
+      }))
+    },
+    options: {
+      responsive:true,
+      scales: { x:{stacked:true}, y:{stacked:true, title:{display:true,text:"horas"}} },
+      plugins: { legend:{ position:"bottom", labels:{ font:{size:11} } } }
+    }
+  });
+}
+</script>
+</body>
+</html>
